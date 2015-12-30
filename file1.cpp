@@ -1,16 +1,13 @@
-int main() {
-    int i = 0;
-    for (int i = 0; i < 10; i++) {
-        if (1) {
-            i = 1;
-        }
-    }
-    while (true) {
-        i++;
-    }
-    do {
-    
-    } while (false);
+switch (c) {
+case '1':case     1:
+    if(cond){ifexpr;}
+    break;
+case '2': case 2:
+    expr2;
+case 3:
+    expr3;
+    break;
+default:
+    expr0;
+    break;
 }
-
- if (5 + (5 - 9) - (5 * 9)) ;
