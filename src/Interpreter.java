@@ -16,6 +16,7 @@ public class Interpreter {
 		keywords.add("if");
 		keywords.add("while");
 		keywords.add("do");
+		keywords.add("case");
 	}
 	
 	private static boolean isKeyword(String str) {
@@ -40,22 +41,31 @@ public class Interpreter {
 		return code.charAt(pos + 1);
 	}
 	
-	private boolean peekElse() {
+	private boolean peekWord(String word) {
 		skipWhitespaces();
 		StringBuilder keyword = new StringBuilder();
+		int len = word.length();
 		int i = pos;
 		char current = getCurrentChar();
-		while (!isEnd() && i - pos < 4) {
+		while (!isEnd() && i - pos < len) {
 			keyword.append(current);
 			String blockType = keyword.toString();
 			// if it is keyword with no-letter char next to it
-			if (blockType.equals("else") && !Character.isLetter(code.charAt(i + 1))) {
+			if (blockType.equals(word) && !Character.isLetter(code.charAt(i + 1))) {
 				return true;
 			}
 			i++;
 			current = code.charAt(i);
 		}
 		return false;
+	}
+	
+	private boolean peekElse() {
+		return peekWord("else");
+	}
+	
+	private boolean peekCase() {
+		return peekWord("case") || peekWord("default");
 	}
 	
 	private void skipElse() {
@@ -66,11 +76,58 @@ public class Interpreter {
 		}
 	}
 	
+	private void skipCase() {
+		if (peekWord("case")) {
+			for (int i = 0; i < 4; i++) {
+				nextChar();
+			}
+		} else if (peekWord("default")) {
+			for (int i = 0; i < 7; i++) {
+				nextChar();
+			}
+		}
+	}
+	
 	private void skipSemicolon() {
 		skipWhitespaces();
 		if (getCurrentChar() == ';') {
 			nextChar();
 		}
+	}
+	
+	private Case readCase() {
+		skipWhitespaces();
+		// skip characters before 'case'
+		while (!peekCase()) {
+			nextChar();
+		}
+		StringBuilder value = new StringBuilder();
+		
+		skipCase();
+		skipWhitespaces();
+		char current = getCurrentChar();
+		while (current != ':') {
+			value.append(current);
+			nextChar();
+			skipWhitespaces();
+			current = getCurrentChar();
+		}
+		nextChar(); // skip ':'
+		// skipWhitespaces();
+		List<Block> bodyCase = readCompoundStatement();
+		return new Case(value.toString(), bodyCase);
+	}
+	
+	private List<Case> readCases() {
+		skipWhitespaces();
+		nextChar(); // skip first '{'
+		List<Case> blocks = new LinkedList<Case>();
+		while (getCurrentChar() != '}') {
+			blocks.add(readCase());
+			skipWhitespaces();
+		}
+		nextChar(); // skip }
+		return blocks;
 	}
 	
 	private boolean isEnd() {
@@ -100,6 +157,14 @@ public class Interpreter {
 			String condition = readCondition();
 			skipSemicolon();
 			blocks.add(new BodyCondition("do", condition, body));
+		} else if (blockType.equals("switch")) {
+			String condition = readCondition();
+			List<Case> body = new LinkedList<Case>();
+			body.addAll(readCases());
+			blocks.add(new Switch(condition, body));
+		} else if (blockType.equals("case")) {
+			Case block = readCase();
+			blocks.add(block);
 		} else {
 			String condition = readCondition();
 			List<Block> body = new LinkedList<Block>();
@@ -153,6 +218,11 @@ public class Interpreter {
 		
 		// if it is only 1 'expression;' or keyword
 		if (current != '{') {
+			if (peekCase()) {
+				List<Block> blocks = new LinkedList<Block>();
+				blocks.add(new EmptyBlock());
+				return blocks;
+			}
 			StringBuilder statement = new StringBuilder();
 			// try to read keyword-block
 			while (Character.isLetter(current)) {
@@ -179,18 +249,22 @@ public class Interpreter {
 		}
 		
 		// if it is {expression1; ...}
-		return readCompoundStatement();
+		nextChar(); // skip first '{'
+		List<Block> blocks = readCompoundStatement();
+		nextChar(); // skip }
+		return blocks;
 	}
 	
 	private List<Block> readCompoundStatement() {
-		nextChar(); // skip first '{'
 		skipWhitespaces();
 		List<Block> blocks = new LinkedList<Block>();
 		while (getCurrentChar() != '}') {
 			blocks.addAll(readStatement());
+			if (blocks.get(blocks.size() - 1) instanceof EmptyBlock) {
+				return blocks;
+			}
 			skipWhitespaces();
 		}
-		nextChar(); // skip }
 		return blocks;
 	}
 	
