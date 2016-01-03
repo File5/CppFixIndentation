@@ -2,9 +2,13 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Interpreter {
 	private static Set<String> keywords;
+	private static Set<Pattern> types;
+	private static Set<Pattern> ioOperations;
 	private String code;
 	private int pos;
 	private int len;
@@ -17,6 +21,26 @@ public class Interpreter {
 		keywords.add("while");
 		keywords.add("do");
 		keywords.add("case");
+		
+		types = new HashSet<Pattern>();
+		types.add(Pattern.compile("\\W*(int )\\W*"));
+		types.add(Pattern.compile("\\W*(float )\\W*"));
+		types.add(Pattern.compile("\\W*(double )\\W*"));
+		types.add(Pattern.compile("\\W*(char )\\W*"));
+		types.add(Pattern.compile("\\W*(bool )\\W*"));
+		types.add(Pattern.compile("\\W*(short )\\W*"));
+		types.add(Pattern.compile("\\W*(long )\\W*"));
+		types.add(Pattern.compile("\\W*(int )\\W*"));
+		types.add(Pattern.compile("\\W*(signed )\\W*"));
+		types.add(Pattern.compile("\\W*(unsigned )\\W*"));
+		types.add(Pattern.compile("\\W*(const )\\W*"));
+		
+		ioOperations = new HashSet<Pattern>();
+		ioOperations.add(Pattern.compile("->\\s*Caption"));
+		ioOperations.add(Pattern.compile("->\\s*Text"));
+		ioOperations.add(Pattern.compile("->\\s*Value"));
+		ioOperations.add(Pattern.compile("->\\s*Cells"));
+		ioOperations.add(Pattern.compile("->\\s*Checked"));
 	}
 	
 	private static boolean isKeyword(String str) {
@@ -95,41 +119,6 @@ public class Interpreter {
 		}
 	}
 	
-	private Case readCase() {
-		skipWhitespaces();
-		// skip characters before 'case'
-		while (!peekCase()) {
-			nextChar();
-		}
-		StringBuilder value = new StringBuilder();
-		
-		skipCase();
-		skipWhitespaces();
-		char current = getCurrentChar();
-		while (current != ':') {
-			value.append(current);
-			nextChar();
-			skipWhitespaces();
-			current = getCurrentChar();
-		}
-		nextChar(); // skip ':'
-		// skipWhitespaces();
-		List<Block> bodyCase = readCompoundStatement();
-		return new Case(value.toString(), bodyCase);
-	}
-	
-	private List<Case> readCases() {
-		skipWhitespaces();
-		nextChar(); // skip first '{'
-		List<Case> blocks = new LinkedList<Case>();
-		while (getCurrentChar() != '}') {
-			blocks.add(readCase());
-			skipWhitespaces();
-		}
-		nextChar(); // skip }
-		return blocks;
-	}
-	
 	private boolean isEnd() {
 		return pos >= len - 1;
 	}
@@ -138,6 +127,38 @@ public class Interpreter {
 		while (Character.isWhitespace(getCurrentChar()) && !isEnd()) {
 			nextChar();
 		}
+	}
+	
+	public static String toFlowchartString(String statement) {
+		for (Pattern type : types) {
+			statement = statement.replaceAll(type.pattern(), "");
+		}
+		statement = statement.trim();
+		if (statement.endsWith(";")) {
+			statement = statement.substring(0, statement.length() - 1);
+		}
+		return statement.trim();
+	}
+	
+	public static boolean isIOBlock(String statement) {
+		for (Pattern iostr : ioOperations) {
+			Matcher matcher = iostr.matcher(statement);
+			if (matcher.find()) {
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	public static String toIOBlockString(String statement) {
+		String[] strs = statement.split("=");
+		for (int i = 0; i < strs.length; i++) {
+			if (!isIOBlock(strs[i])) {
+				strs[i] = strs[i].replaceAll("\\[\\s*\\w*\\s*\\]", "");
+				return toFlowchartString(strs[i]);
+			}
+		}
+		return statement.trim();
 	}
 	
 	public void analyze() {
@@ -244,7 +265,11 @@ public class Interpreter {
 			}
 			nextChar(); // skip ';'
 			List<Block> blocks = new LinkedList<Block>();
-			blocks.add(new Statement(statement.toString().trim() + ";"));
+			if (isIOBlock(statement.toString())) {
+				blocks.add(new IOBlock(toIOBlockString(statement.toString())));
+			} else {
+				blocks.add(new Statement(statement.toString().trim() + ";"));
+			}
 			return blocks;
 		}
 		
@@ -265,6 +290,41 @@ public class Interpreter {
 			}
 			skipWhitespaces();
 		}
+		return blocks;
+	}
+	
+	private Case readCase() {
+		skipWhitespaces();
+		// skip characters before 'case'
+		while (!peekCase()) {
+			nextChar();
+		}
+		StringBuilder value = new StringBuilder();
+		
+		skipCase();
+		skipWhitespaces();
+		char current = getCurrentChar();
+		while (current != ':') {
+			value.append(current);
+			nextChar();
+			skipWhitespaces();
+			current = getCurrentChar();
+		}
+		nextChar(); // skip ':'
+		// skipWhitespaces();
+		List<Block> bodyCase = readCompoundStatement();
+		return new Case(value.toString(), bodyCase);
+	}
+	
+	private List<Case> readCases() {
+		skipWhitespaces();
+		nextChar(); // skip first '{'
+		List<Case> blocks = new LinkedList<Case>();
+		while (getCurrentChar() != '}') {
+			blocks.add(readCase());
+			skipWhitespaces();
+		}
+		nextChar(); // skip }
 		return blocks;
 	}
 	
