@@ -1,3 +1,4 @@
+import java.math.MathContext;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -9,9 +10,13 @@ public class Interpreter {
 	private static Set<String> keywords;
 	private static Set<Pattern> types;
 	private static Set<Pattern> ioOperations;
+	private static Set<Pattern> ioFunctions;
+	private static Set<Pattern> typeConversions;
+	private static Set<Pattern> typeInParentheses;
 	private String code;
 	private int pos;
 	private int len;
+	private boolean flowchartMode;
 	
 	static {
 		keywords = new HashSet<String>();
@@ -23,17 +28,17 @@ public class Interpreter {
 		keywords.add("case");
 		
 		types = new HashSet<Pattern>();
-		types.add(Pattern.compile("\\W*(int )\\W*"));
-		types.add(Pattern.compile("\\W*(float )\\W*"));
-		types.add(Pattern.compile("\\W*(double )\\W*"));
-		types.add(Pattern.compile("\\W*(char )\\W*"));
-		types.add(Pattern.compile("\\W*(bool )\\W*"));
-		types.add(Pattern.compile("\\W*(short )\\W*"));
-		types.add(Pattern.compile("\\W*(long )\\W*"));
-		types.add(Pattern.compile("\\W*(int )\\W*"));
-		types.add(Pattern.compile("\\W*(signed )\\W*"));
-		types.add(Pattern.compile("\\W*(unsigned )\\W*"));
-		types.add(Pattern.compile("\\W*(const )\\W*"));
+		types.add(Pattern.compile("int\\W"));
+		types.add(Pattern.compile("float\\W"));
+		types.add(Pattern.compile("double\\W"));
+		types.add(Pattern.compile("char\\W"));
+		types.add(Pattern.compile("bool\\W"));
+		types.add(Pattern.compile("short\\W"));
+		types.add(Pattern.compile("long\\W"));
+		types.add(Pattern.compile("signed\\W"));
+		types.add(Pattern.compile("unsigned\\W"));
+		types.add(Pattern.compile("const\\W"));
+		types.add(Pattern.compile("void\\W"));
 		
 		ioOperations = new HashSet<Pattern>();
 		ioOperations.add(Pattern.compile("->\\s*Caption"));
@@ -41,16 +46,46 @@ public class Interpreter {
 		ioOperations.add(Pattern.compile("->\\s*Value"));
 		ioOperations.add(Pattern.compile("->\\s*Cells"));
 		ioOperations.add(Pattern.compile("->\\s*Checked"));
+		
+		ioFunctions = new HashSet<Pattern>();
+		ioFunctions.add(Pattern.compile("ShowMessage\\s*\\(([^;]*)\\)"));
+		
+		typeConversions = new HashSet<Pattern>();
+		typeConversions.add(Pattern.compile("IntToStr\\s*\\(([^;]*)\\)"));
+		typeConversions.add(Pattern.compile("StrToInt\\s*\\(([^;]*)\\)"));
+		typeConversions.add(Pattern.compile("FloatToStr\\s*\\(([^;]*)\\)"));
+		typeConversions.add(Pattern.compile("StrToFloat\\s*\\(([^;]*)\\)"));
+		
+		typeInParentheses = new HashSet<Pattern>();
+		typeInParentheses.add(Pattern.compile("\\(\\s*int[\\s\\*]*\\)"));
+		typeInParentheses.add(Pattern.compile("\\(\\s*float[\\s\\*]*\\)"));
+		typeInParentheses.add(Pattern.compile("\\(\\s*double[\\s\\*]*\\)"));
+		typeInParentheses.add(Pattern.compile("\\(\\s*char[\\s\\*]*\\)"));
+		typeInParentheses.add(Pattern.compile("\\(\\s*bool[\\s\\*]*\\)"));
+		typeInParentheses.add(Pattern.compile("\\(\\s*short[\\s\\*]*\\)"));
+		typeInParentheses.add(Pattern.compile("\\(\\s*long[\\s\\*]*\\)"));
+		typeInParentheses.add(Pattern.compile("\\(\\s*signed[\\s\\*]*\\)"));
+		typeInParentheses.add(Pattern.compile("\\(\\s*unsigned[\\s\\*]*\\)"));
+		typeInParentheses.add(Pattern.compile("\\(\\s*const[\\s\\*]*\\)"));
+		typeInParentheses.add(Pattern.compile("\\(\\s*void[\\s\\*]*\\)"));
+		
 	}
 	
 	private static boolean isKeyword(String str) {
 		return keywords.contains(str);
 	}
 	
-	public Interpreter(String code) {
+	// code is a program code,
+	// flowchartMode (default to true) enables I/O Blocks
+	public Interpreter(String code, boolean flowchartMode) {
 		this.code = code;
 		this.pos = 0;
 		this.len = code.length();
+		this.flowchartMode = flowchartMode;
+	}
+	
+	public Interpreter(String code) {
+		this(code, true);
 	}
 	
 	private char getCurrentChar() {
@@ -129,9 +164,22 @@ public class Interpreter {
 		}
 	}
 	
-	public static String toFlowchartString(String statement) {
+	private String toFlowchartString(String statement) {
+		if (!flowchartMode) {
+			return statement + ";";
+		}
+		for (Pattern type : typeInParentheses) {
+			statement = statement.replaceAll(type.pattern(), "").trim();
+			statement = statement.replaceAll("\\s+", " ");
+		}
 		for (Pattern type : types) {
-			statement = statement.replaceAll(type.pattern(), "");
+			statement = statement.replaceAll(type.pattern(), "").trim();
+		}
+		for (Pattern conversion : typeConversions) {
+			Matcher matcher = conversion.matcher(statement);
+			if (matcher.find()) {
+				statement = matcher.group(1);
+			}
 		}
 		statement = statement.trim();
 		if (statement.endsWith(";")) {
@@ -140,8 +188,17 @@ public class Interpreter {
 		return statement.trim();
 	}
 	
-	public static boolean isIOBlock(String statement) {
+	private  boolean isIOBlock(String statement) {
+		if (!flowchartMode) {
+			return false;
+		}
 		for (Pattern iostr : ioOperations) {
+			Matcher matcher = iostr.matcher(statement);
+			if (matcher.find()) {
+				return true;
+			}
+		}
+		for (Pattern iostr : ioFunctions) {
 			Matcher matcher = iostr.matcher(statement);
 			if (matcher.find()) {
 				return true;
@@ -150,7 +207,16 @@ public class Interpreter {
 		return false;
 	}
 	
-	public static String toIOBlockString(String statement) {
+	private String toIOBlockString(String statement) {
+		if (!flowchartMode) {
+			return statement = ";";
+		}
+		for (Pattern iostr : ioFunctions) {
+			Matcher matcher = iostr.matcher(statement);
+			if (matcher.find()) {
+				return toFlowchartString(matcher.group(1));
+			}
+		}
 		String[] strs = statement.split("=");
 		for (int i = 0; i < strs.length; i++) {
 			if (!isIOBlock(strs[i])) {
@@ -163,7 +229,7 @@ public class Interpreter {
 	
 	public void analyze() {
 		while (!isEnd()) {
-			List<Block> b = readStatement();
+			List<Block> b = readFunction();
 			for (Block item : b) {
 				item.print(0);
 			}
@@ -265,10 +331,12 @@ public class Interpreter {
 			}
 			nextChar(); // skip ';'
 			List<Block> blocks = new LinkedList<Block>();
-			if (isIOBlock(statement.toString())) {
+			if (isIOBlock(statement.toString()) && flowchartMode) {
 				blocks.add(new IOBlock(toIOBlockString(statement.toString())));
 			} else {
-				blocks.add(new Statement(statement.toString().trim() + ";"));
+				blocks.add(new Statement(
+						toFlowchartString(statement.toString().trim())
+				));
 			}
 			return blocks;
 		}
@@ -326,6 +394,28 @@ public class Interpreter {
 		}
 		nextChar(); // skip }
 		return blocks;
+	}
+	
+	private List<Block> readFunction() {
+		StringBuilder statement = new StringBuilder();
+		while (!isEnd()) {
+			char current = getCurrentChar();
+			// it is a 'statement ... ;', not a function
+			if (current == ';') {
+				statement.setLength(0);
+			} else if (current == '{') { // it is a function declaration
+				nextChar(); // skip first '{'
+				List<Block> blocks = readCompoundStatement();
+				nextChar(); // skip }
+				List<Block> function = new LinkedList<Block>();
+				function.add(new Function(statement.toString().trim(), blocks));
+				return function;
+			} else {
+				statement.append(current);
+			}
+			nextChar();
+		}
+		return new LinkedList<Block>();
 	}
 	
 }

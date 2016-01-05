@@ -7,7 +7,7 @@ import java.util.Scanner;
 public class Main {
 
 	public static void main(String[] args) throws FileNotFoundException {
-		FileReader file = new FileReader("file3.cpp");
+		FileReader file = new FileReader("file4.cpp");
 		Scanner scanner = new Scanner(file);
 		//LinkedList<String> code = new LinkedList<String>();
 		StringBuilder code = new StringBuilder();
