@@ -28,17 +28,17 @@ public class Interpreter {
 		keywords.add("case");
 		
 		types = new HashSet<Pattern>();
-		types.add(Pattern.compile("int\\W"));
-		types.add(Pattern.compile("float\\W"));
-		types.add(Pattern.compile("double\\W"));
-		types.add(Pattern.compile("char\\W"));
-		types.add(Pattern.compile("bool\\W"));
-		types.add(Pattern.compile("short\\W"));
-		types.add(Pattern.compile("long\\W"));
-		types.add(Pattern.compile("signed\\W"));
-		types.add(Pattern.compile("unsigned\\W"));
-		types.add(Pattern.compile("const\\W"));
-		types.add(Pattern.compile("void\\W"));
+		types.add(Pattern.compile("(int[\\s\\*]*)\\W"));
+		types.add(Pattern.compile("(float[\\s\\*]*)\\W"));
+		types.add(Pattern.compile("(double[\\s\\*]*)\\W"));
+		types.add(Pattern.compile("(char[\\s\\*]*)\\W"));
+		types.add(Pattern.compile("(bool[\\s\\*]*)\\W"));
+		types.add(Pattern.compile("(short[\\s\\*]*)\\W"));
+		types.add(Pattern.compile("(long[\\s\\*]*)\\W"));
+		types.add(Pattern.compile("(signed[\\s\\*]*)\\W"));
+		types.add(Pattern.compile("(unsigned[\\s\\*]*)\\W"));
+		types.add(Pattern.compile("(const[\\s\\*]*)\\W"));
+		types.add(Pattern.compile("(void[\\s\\*]*)\\W"));
 		
 		ioOperations = new HashSet<Pattern>();
 		ioOperations.add(Pattern.compile("->\\s*Caption"));
@@ -170,10 +170,14 @@ public class Interpreter {
 		}
 		for (Pattern type : typeInParentheses) {
 			statement = statement.replaceAll(type.pattern(), "").trim();
-			statement = statement.replaceAll("\\s+", " ");
 		}
 		for (Pattern type : types) {
-			statement = statement.replaceAll(type.pattern(), "").trim();
+			Matcher matcher = type.matcher(statement);
+			while (matcher.find()) {
+				statement = statement.substring(0, matcher.start(1)) +
+						  	statement.substring(matcher.end(1));
+				matcher = type.matcher(statement);
+			}
 		}
 		for (Pattern conversion : typeConversions) {
 			Matcher matcher = conversion.matcher(statement);
@@ -185,6 +189,7 @@ public class Interpreter {
 		if (statement.endsWith(";")) {
 			statement = statement.substring(0, statement.length() - 1);
 		}
+		statement = statement.replaceAll("\\s+", " ");
 		return statement.trim();
 	}
 	
@@ -220,11 +225,27 @@ public class Interpreter {
 		String[] strs = statement.split("=");
 		for (int i = 0; i < strs.length; i++) {
 			if (!isIOBlock(strs[i])) {
-				strs[i] = strs[i].replaceAll("\\[\\s*\\w*\\s*\\]", "");
+				//strs[i] = strs[i].replaceAll("\\[\\s*\\w*\\s*\\]", "");
 				return toFlowchartString(strs[i]);
 			}
 		}
 		return statement.trim();
+	}
+	
+	public void deleteComments() {
+		Pattern directive = Pattern.compile("#.*$", Pattern.MULTILINE);
+		Matcher matcher = directive.matcher(code);
+		code = matcher.replaceAll("");
+
+		Pattern multilineComment = Pattern.compile("[^/]/\\*.*?\\*/", Pattern.DOTALL);
+		matcher = multilineComment.matcher(code);
+		code = matcher.replaceAll("");
+		
+		Pattern onelineComment = Pattern.compile("//.*$", Pattern.MULTILINE);
+		matcher = onelineComment.matcher(code);
+		code = matcher.replaceAll("\n");
+		
+		len = code.length();
 	}
 	
 	public void analyze() {

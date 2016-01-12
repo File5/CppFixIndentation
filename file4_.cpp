@@ -27,13 +27,13 @@ void __fastcall TForm1::Task2RBClick(TObject *Sender) {
     SolveBtn->Enabled = true
 }
 void __fastcall TForm1::SolveBtnClick(TObject *Sender) {
-    **mas = new [n]
+    *mas = new [n]
     for (int i = 0; i < n; i++) {
         mas[i] = new [m]
     }
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < m; j++) {
-            /* I/O Block */ mas
+            /* I/O Block */ mas[i][j]
         }
     }
     if (Task1RB->Checked) {
@@ -88,11 +88,6 @@ void __fastcall TForm1::SolveBtnClick(TObject *Sender) {
             } else {
                 /* I/O Block */ max
             }
-        }
-    }
-    for (int i = 0; i < m; i++) {
-        for (int j = 0; j < n; j++) {
-            /* I/O Block */ mas
         }
     }
     for (int i = 0; i < n; i++) {
